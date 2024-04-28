@@ -1,0 +1,170 @@
+---
+title: "Plot_TopDownData"
+author: "Somak Ray"
+date: "2023-11-02"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+**This script plots an S-curve for log-copy numbers for proteins from Olsen's 
+data and indicates the protein hits from our data in the plot. prints the percent
+of protein hits in each decile bin of Olsen's data**
+
+**Required Libraries**
+```{r, results='hide', message=FALSE, warning=FALSE}
+library(scales)
+library("extrafont")
+library(Cairo) # For anti-aliasing to increase sharpness in plots
+library("pander") # For pretty printing sessionInfo
+```
+```{r}
+rm(list = ls())
+set.seed(12345)
+setwd("E:\\SHOWCASE\\ASMS2022\\EDIT_GIT")
+
+```
+**Read the input file**
+```{r}
+
+input_file <- "ASMS22_Input2R.Olsen2Match.Data.txt"
+copynum.df <-
+  read.table(
+    input_file,
+    header = TRUE,
+    sep = "\t",
+    stringsAsFactors = TRUE,
+    check.names = TRUE,
+    na.strings = ""
+  )
+```
+**Information about the data**
+```{r, echo=FALSE}
+cat("Dimensions of the data frame:", dim(copynum.df), "\n")
+```
+**Head of the data frame:**
+```{r, echo=FALSE}
+print(head(copynum.df))
+```
+**Tail of the data frame:**
+```{r, echo=FALSE}
+print(tail(copynum.df))
+cat("Summary of the data frame:", summary(copynum.df), "\n")
+
+```
+**Sort by ascending Log10Copynum**
+
+```{r}
+# Sort by ascending Log10Copynum
+copynum_lo2hi.df <-
+  copynum.df[order(copynum.df$Log10Copynum, decreasing = FALSE), ]
+
+# Count the number of 'Present' matches
+num_present = table(copynum.df$Match2TopDown)["Present"]
+
+# Setting color palette
+rbPal <- colorRampPalette(c('red', 'orangered', 'purple', 'blue'))
+
+copynum_lo2hi.df$chroma <-
+  rev(rbPal(10)[as.numeric(cut(1:length(copynum_lo2hi.df$Log10Copynum), breaks = 10))])
+```
+```{r}
+
+loadfonts()
+#Calculate data deciles
+deciles <-
+  quantile((1:length(copynum_lo2hi.df$Log10Copynum)), probs = seq(.1, .9, by = .1))
+
+# Plot figure with percent match or counts match for each decile
+Cairo(
+  file = "XBL_ASMS22_SCurve.png",
+  type = 'png',
+  width = 920,
+  height = 680,
+  family = "Arial"
+)
+plot(
+  copynum_lo2hi.df$Log10Copynum,
+  col = alpha(copynum_lo2hi.df$chroma, 0.50),
+  pch = (c(20, charToRaw("|")))[copynum_lo2hi.df$Match2TopDown],
+  cex = c(1.0, 2.0)[copynum_lo2hi.df$Match2TopDown],
+  cex.axis = 1.8,
+  cex.lab = 1.6,
+  xlab = 'Index',
+  ylab = 'Log10CopyNumber'
+)
+
+
+abline(
+  v = deciles,
+  lty = 1,
+  col = 'grey47',
+  lwd = 2
+)
+
+# Calculate bin limits and annotate the plot with match counts or percentages
+binlimits <- round(unname(deciles), 0)
+begin <- c(1)
+right <- numeric()
+
+for (val in binlimits) {
+  right <- c(right, val)
+  begin <- c(begin, val + 1)
+}
+
+right <- c(right, length(copynum_lo2hi.df$Log10Copynum))
+stopifnot(length(begin) == length(right))
+#legend_choice = 'count'
+legend_choice = 'pct'
+
+for (i in 1:length(begin)) {
+  sub.df <- copynum_lo2hi.df[begin[i]:right[i], ]
+  midbin <- begin[i] + round(((right[i] - begin[i]) / 2.0), 0)
+  matchcount <- sum(sub.df$Match2TopDown == "Present")
+  percentMatch <- (matchcount / num_present) * 100
+  percentMatch <- round(percentMatch, 0)
+  if (legend_choice == 'count') {
+    legend(
+      x = midbin - 550,
+      y = 2.0,
+      legend = paste0(matchcount),
+      cex = 1.2,
+      text.font = 2,
+      xjust = 0
+    )
+  } else {
+    legend(
+      x = midbin - 550,
+      y = 2.0,
+      legend = paste0(percentMatch, " %"),
+      cex = 1.2,
+      text.font = 2,
+      xjust = 0,
+      bty = "n"
+    )
+  }
+}
+
+# Add legend for deciles
+legend(
+  "topleft",
+  title = "Decile",
+  legend = c(1:10),
+  col = rev(rbPal(10)),
+  pch = 15,
+  cex = 1.5,
+  pt.cex = 2.5
+)
+
+
+dev.off()
+
+```
+![Decile Plot](XBL_ASMS22_SCurve.png)
+```{r}
+pander(sessionInfo())
+```
+
+
