@@ -1,2 +1,2 @@
 # TopDownProteomics
-Micc. scripts for top down proteomics
+Misc. scripts for top down proteomics
